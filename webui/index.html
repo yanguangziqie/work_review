@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工作总结生成系统（日报/周报/月报/季度总结）</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --ok: #16a34a;
+    --err: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    color: #fff;
+    padding: 28px 24px;
+  }
+  header h1 { margin: 0 0 6px; font-size: 22px; }
+  header p { margin: 0; opacity: .85; font-size: 14px; }
+  main {
+    max-width: 860px;
+    margin: -18px auto 40px;
+    padding: 0 16px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, .08);
+    padding: 24px;
+    margin-bottom: 18px;
+  }
+  h2 { font-size: 16px; margin: 0 0 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text], input[type=number], select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+  }
+  textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+    resize: vertical;
+  }
+  input[type=text]:focus, input[type=number]:focus, textarea:focus { border-color: var(--primary); }
+  .row { display: flex; gap: 14px; }
+  .row > div { flex: 1; }
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 26px 16px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
+  .files { margin-top: 10px; font-size: 13px; }
+  .files .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #eff6ff;
+    color: var(--primary-dark);
+    border-radius: 20px;
+    padding: 5px 12px;
+    margin: 4px 6px 0 0;
+  }
+  .files .chip span { cursor: pointer; font-weight: bold; }
+  .opts { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 14px; }
+  .opts label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 14px; }
+  button.go {
+    margin-top: 18px;
+    width: 100%;
+    padding: 13px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--primary);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: .15s;
+  }
+  button.go:hover { background: var(--primary-dark); }
+  button.go:disabled { background: #94a3b8; cursor: not-allowed; }
+  button.test {
+    padding: 9px 18px;
+    font-size: 14px;
+    color: var(--primary);
+    background: #eff6ff;
+    border: 1px solid var(--primary);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button.test:hover { background: #dbeafe; }
+  .status { display: none; padding: 16px; border-radius: 10px; margin-top: 16px; font-size: 14px; }
+  .status.ok { display: block; background: #f0fdf4; color: var(--ok); border: 1px solid #bbf7d0; }
+  .status.err { display: block; background: #fef2f2; color: var(--err); border: 1px solid #fecaca; }
+  .status.busy { display: block; background: #eff6ff; color: var(--primary-dark); border: 1px solid #bfdbfe; }
+  pre.log {
+    background: #0f172a;
+    color: #cbd5e1;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    max-height: 260px;
+    overflow: auto;
+    white-space: pre-wrap;
+    margin: 10px 0 0;
+  }
+  .dl { margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .dl a {
+    display: inline-block;
+    padding: 9px 18px;
+    border-radius: 8px;
+    background: var(--ok);
+    color: #fff;
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .dl a.secondary { background: var(--primary); }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding-bottom: 24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 工作总结生成系统</h1>
+  <p>上传日常工作记录（Word / Excel / TXT / Markdown / PDF / CSV）→ 自动按模板生成日报 / 周报 / 月报 / 季度总结</p>
+</header>
+<main>
+  <form id="form">
+    <div class="card">
+      <h2>1. 工作内容文件</h2>
+      <div class="drop" id="drop">
+        点击选择文件，或拖拽文件到这里<br>
+        <small>支持 docx / xlsx / txt / md / csv / pdf，可多选</small>
+        <input type="file" id="files" multiple
+               accept=".docx,.xlsx,.txt,.md,.csv,.pdf" hidden>
+      </div>
+      <div class="files" id="fileList"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. 生成设置</h2>
+      <div class="row">
+        <div style="flex:0 0 170px">
+          <label>报告类型</label>
+          <select id="reportType">
+            <option value="day">日报</option>
+            <option value="week">周报</option>
+            <option value="month">月报</option>
+            <option value="quarter" selected>季度总结</option>
+          </select>
+        </div>
+        <div>
+          <label>时间范围（留空=自动取当前周期）</label>
+          <input type="text" id="period" placeholder="2026Q3">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>文档标题（可选，默认：<周期><报告类型>）</label>
+          <input type="text" id="title" placeholder="例如：XX团队2026年第40周周报">
+        </div>
+      </div>
+      <label>是否使用工作总结模板</label>
+      <div class="opts" style="margin-top:0">
+        <label><input type="radio" name="tplMode" id="tplYes"> 📄 使用模板（上传模板文件，按模板结构生成）</label>
+        <label><input type="radio" name="tplMode" id="tplNo" checked> 📝 不使用模板（直接生成）</label>
+      </div>
+      <div id="tplBox" style="display:none">
+        <label>工作总结模板文件（docx / Excel(.xls/.xlsx) / TXT / Markdown / CSV / PDF，输出格式跟随模板）</label>
+        <input type="file" id="template" accept=".docx,.xlsx,.xls,.txt,.md,.csv,.pdf">
+      </div>
+      <label>生成要求（可选）：<span id="promptHint"></span></label>
+      <textarea id="extraPrompt" rows="3" placeholder="例如：写成 800 字以内的叙述性周报，分‘本周工作/成果/下周计划’三段，语言正式、突出量化数据"></textarea>
+      <div class="opts">
+        <label><input type="checkbox" id="noFilter"> 不做时间过滤（默认找不到目标周期内容时，也会自动按文件日期或全量纳入）</label>
+        <label><input type="checkbox" id="noDigest"> 不生成 Markdown 摘要</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3. 生成方式</h2>
+      <div class="opts" style="margin-top:0">
+        <label><input type="radio" name="mode" id="modeRule" checked> 📋 规则生成（离线、快、抽取式）</label>
+        <label><input type="radio" name="mode" id="modeAI"> 🤖 AI 生成（归纳润色、自然语言，需配置模型）</label>
+      </div>
+      <div id="aiBox" style="display:none">
+        <div class="row">
+          <div>
+            <label>接入方式</label>
+            <select id="provider">
+              <option value="openai">OpenAI 兼容接口（API Key，支持 DeepSeek/通义/Kimi/GPT 等）</option>
+              <option value="ollama">本地 Ollama（无需 Key）</option>
+            </select>
+          </div>
+          <div>
+            <label>接口地址</label>
+            <input type="text" id="apiBase" placeholder="https://api.openai.com/v1">
+          </div>
+        </div>
+        <div class="row" style="align-items:center;margin-top:12px">
+          <button type="button" id="testBtn" class="test">🔌 测试连接并获取模型</button>
+          <span id="testStatus" style="font-size:13px;color:var(--muted)"></span>
+        </div>
+        <label>模型（测试连接后可下拉选择）</label>
+        <div class="row">
+          <div>
+            <select id="modelSelect">
+              <option value="">（请先测试连接获取模型列表）</option>
+            </select>
+            <input type="text" id="modelCustom" placeholder="手动输入模型名，如 qwen2.5:14b" style="display:none">
+          </div>
+          <div style="flex:0 0 auto;align-self:flex-end;padding-bottom:9px">
+            <label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--text);font-size:13px">
+              <input type="checkbox" id="modelManual"> 手动输入
+            </label>
+          </div>
+        </div>
+        <label>API Key（仅用于本次请求，不会保存；Ollama 留空）</label>
+        <input type="text" id="apiKey" placeholder="sk-..." autocomplete="off">
+      </div>
+    </div>
+
+    <button type="submit" class="go" id="goBtn">生成季度总结</button>
+    <div class="status" id="status"></div>
+    <div class="dl" id="downloads"></div>
+    <pre class="log" id="log" style="display:none"></pre>
+  </form>
+</main>
+<footer>生成内容均提取自上传的真实工作记录，配图位置需自行插入截图</footer>
+
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('files');
+const fileList = document.getElementById('fileList');
+let pickedFiles = [];
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('over');
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+function addFiles(list) {
+  for (const f of list) {
+    if (!pickedFiles.some(x => x.name === f.name && x.size === f.size)) pickedFiles.push(f);
+  }
+  renderFiles();
+}
+function renderFiles() {
+  fileList.innerHTML = pickedFiles.map((f, i) =>
+    `<span class="chip">${f.name} <small>(${(f.size/1024).toFixed(1)}KB)</small> <span onclick="removeFile(${i})">×</span></span>`
+  ).join('');
+}
+function removeFile(i) { pickedFiles.splice(i, 1); renderFiles(); }
+
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+const dlEl = document.getElementById('downloads');
+const goBtn = document.getElementById('goBtn');
+const aiBox = document.getElementById('aiBox');
+const providerEl = document.getElementById('provider');
+const apiBaseEl = document.getElementById('apiBase');
+const modelSelectEl = document.getElementById('modelSelect');
+const modelCustomEl = document.getElementById('modelCustom');
+const modelManualEl = document.getElementById('modelManual');
+const reportTypeEl = document.getElementById('reportType');
+const periodEl = document.getElementById('period');
+
+const REPORT_LABEL = {
+  day: '日报',
+  week: '周报',
+  month: '月报',
+  quarter: '季度总结',
+};
+const PERIOD_PLACEHOLDER = {
+  day: '2026-10-01（留空=今天）',
+  week: '2026W40 或 2026-10-01（留空=本周）',
+  month: '2026-10（留空=本月）',
+  quarter: '2026Q3（留空=本季度）',
+};
+const PERIOD_RE = {
+  day: /^\d{4}-\d{1,2}-\d{1,2}$/,
+  week: /^(\d{4}-?W\d{1,2}|\d{4}-\d{1,2}-\d{1,2})$/i,
+  month: /^\d{4}-\d{1,2}$/,
+  quarter: /^\d{4}-?Q[1-4]$/i,
+};
+
+// 兼容 2026/9/21、2026.9.21、2026年9月21日 等写法，归一为标准格式
+function normalizePeriod(s) {
+  if (!s) return s;
+  let t = s.trim().replace(/[\/.年]/g, '-').replace(/月/g, '-').replace(/日/g, '');
+  t = t.replace(/-+$/g, '');
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
+  m = t.match(/^(\d{4})-(\d{1,2})$/);
+  if (m) return m[1] + '-' + String(m[2]).padStart(2, '0');
+  m = t.match(/^(\d{4})-?[Ww](\d{1,2})$/);
+  if (m) return m[1] + 'W' + m[2];
+  m = t.match(/^(\d{4})-?[Qq](\d)$/);
+  if (m) return m[1] + 'Q' + m[2];
+  return t;
+}
+
+function syncReportUI() {
+  const t = reportTypeEl.value;
+  periodEl.placeholder = PERIOD_PLACEHOLDER[t] || '';
+  periodEl.value = '';  // 切换报告类型时清掉旧时间范围，避免“选周报却按季度过滤”
+  goBtn.textContent = '生成' + (REPORT_LABEL[t] || '总结');
+}
+reportTypeEl.addEventListener('change', syncReportUI);
+syncReportUI();
+
+const tplYes = document.getElementById('tplYes');
+const tplNo = document.getElementById('tplNo');
+const tplBox = document.getElementById('tplBox');
+const promptHint = document.getElementById('promptHint');
+function syncTplMode() {
+  const yes = tplYes.checked;
+  tplBox.style.display = yes ? 'block' : 'none';
+  promptHint.textContent = yes
+    ? '按模板结构生成；AI 模式下可写措辞要求（如“语言正式、突出量化数据”）'
+    : '填写则直接按要求生成文档（Markdown）；不填则按内置标准结构（总体情况/已完成/进行中）';
+}
+tplYes.addEventListener('change', syncTplMode);
+tplNo.addEventListener('change', syncTplMode);
+syncTplMode();
+
+function syncAiBox() {
+  const ai = document.getElementById('modeAI').checked;
+  aiBox.style.display = ai ? 'block' : 'none';
+}
+function syncProvider() {
+  if (providerEl.value === 'ollama') {
+    apiBaseEl.placeholder = 'http://localhost:11434';
+    apiBaseEl.value = apiBaseEl.value || 'http://localhost:11434';
+  } else {
+    apiBaseEl.placeholder = 'https://api.openai.com/v1';
+  }
+}
+function currentModel() {
+  return modelManualEl.checked ? modelCustomEl.value.trim() : modelSelectEl.value;
+}
+async function testConnection(silent) {
+  const st = document.getElementById('testStatus');
+  if (!silent) st.textContent = '⏳ 连接中…';
+  try {
+    const resp = await fetch('/api/ai/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: providerEl.value,
+        api_base: apiBaseEl.value.trim(),
+        ['api_' + 'key']: document.getElementById('apiKey').value.trim(),
+      }),
+    });
+    const data = await resp.json();
+    if (data.models && data.models.length) {
+      modelSelectEl.innerHTML = data.models
+        .map(m => `<option value="${m}">${m}</option>`).join('');
+      if (!modelManualEl.checked) modelSelectEl.style.display = '';
+      st.textContent = data.message;
+    } else {
+      modelSelectEl.innerHTML = '<option value="">（未获取到模型列表）</option>';
+      st.textContent = data.message + '，可勾选“手动输入”填写模型名';
+    }
+  } catch (e) {
+    st.textContent = '❌ 连接失败：' + e.message;
+  }
+}
+document.getElementById('modeRule').addEventListener('change', syncAiBox);
+document.getElementById('modeAI').addEventListener('change', syncAiBox);
+providerEl.addEventListener('change', () => { syncProvider(); testConnection(true); });
+apiBaseEl.addEventListener('change', () => testConnection(true));
+document.getElementById('testBtn').addEventListener('click', () => testConnection(false));
+modelManualEl.addEventListener('change', () => {
+  modelSelectEl.style.display = modelManualEl.checked ? 'none' : '';
+  modelCustomEl.style.display = modelManualEl.checked ? '' : 'none';
+});
+syncProvider();
+
+function setStatus(kind, html) {
+  statusEl.className = 'status ' + kind;
+  statusEl.innerHTML = html;
+}
+function showLog(lines) {
+  if (lines && lines.length) {
+    logEl.style.display = 'block';
+    logEl.textContent = lines.join('\n');
+  }
+}
+
+function renderDownloads(data, reportType) {
+  dlEl.innerHTML = `
+    <a href="/api/download/${data.token}/docx">⬇ 下载原始文件：${data.output_name}</a>
+    ${data.has_digest ? `<a class="secondary" href="/api/download/${data.token}/md">⬇ 下载内容摘要 md</a>` : ''}
+    <span style="display:inline-flex;align-items:center;gap:8px">
+      <select id="exportFmt" style="width:auto;padding:8px 10px">
+        <option value="docx">导出为 Word (.docx)</option>
+        <option value="md">导出为 Markdown (.md)</option>
+        <option value="txt">导出为纯文本 (.txt)</option>
+        <option value="xlsx">导出为 Excel (.xlsx)</option>
+        <option value="html">导出为网页 (.html)</option>
+      </select>
+      <button type="button" id="exportBtn" class="test">导出</button>
+    </span>`;
+  document.getElementById('exportBtn').addEventListener('click', () => doExport(data.token));
+}
+
+async function doExport(token) {
+  const fmt = document.getElementById('exportFmt').value;
+  setStatus('busy', '⏳ 正在导出 ' + fmt + '…');
+  try {
+    const resp = await fetch('/api/export/' + token + '/' + fmt);
+    if (!resp.ok) {
+      let msg = 'HTTP ' + resp.status;
+      try { const j = await resp.json(); if (j.error) msg = j.error; } catch (_) {}
+      throw new Error(msg);
+    }
+    const blob = await resp.blob();
+    const cd = resp.headers.get('Content-Disposition') || '';
+    let fname = 'export.' + fmt;
+    const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+    if (m) fname = decodeURIComponent(m[1]);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    setStatus('ok', '✅ 已导出：' + fname);
+  } catch (e) {
+    setStatus('err', '❌ 导出失败：' + e.message);
+  }
+}
+
+document.getElementById('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  dlEl.innerHTML = '';
+  logEl.style.display = 'none';
+  if (!pickedFiles.length) { setStatus('err', '请先选择工作内容文件'); return; }
+
+  const reportType = reportTypeEl.value;
+  const periodVal = normalizePeriod(periodEl.value.trim());
+  if (periodVal && !PERIOD_RE[reportType].test(periodVal)) {
+    setStatus('err', `❌ 时间范围「${periodVal}」与报告类型「${REPORT_LABEL[reportType]}」不匹配，请按提示填写（或清空自动取当前周期）`);
+    return;
+  }
+
+  const fd = new FormData();
+  for (const f of pickedFiles) fd.append('files', f);
+  const useTpl = tplYes.checked;
+  const tpl = document.getElementById('template').files[0];
+  if (useTpl && !tpl) {
+    setStatus('err', '已选择“使用模板”，请上传模板文件（或将模板选项改为“不使用模板”）');
+    return;
+  }
+  fd.append('use_template', useTpl ? '1' : '0');
+  if (useTpl && tpl) fd.append('template', tpl);
+  fd.append('report_type', reportType);
+  fd.append('period', periodVal);
+  fd.append('title', document.getElementById('title').value.trim());
+  fd.append('no_filter', document.getElementById('noFilter').checked ? '1' : '');
+  fd.append('no_digest', document.getElementById('noDigest').checked ? '1' : '');
+  fd.append('extra_prompt', document.getElementById('extraPrompt').value.trim());
+  const useAi = document.getElementById('modeAI').checked;
+  fd.append('use_ai', useAi ? '1' : '');
+  if (useAi) {
+    const model = currentModel();
+    if (!model) { setStatus('err', '请选择或输入模型名称（可先点“测试连接并获取模型”）'); goBtn.disabled = false; return; }
+    fd.append('provider', providerEl.value);
+    fd.append('api_base', apiBaseEl.value.trim());
+    fd.append('api_' + 'key', document.getElementById('apiKey').value.trim());
+    fd.append('model', model);
+  }
+
+  goBtn.disabled = true;
+  setStatus('busy', useAi
+    ? '🤖 AI 正在生成总结内容… 本地大模型受机器性能与模型大小影响，可能需要几分钟，请耐心等待'
+    : '⏳ 正在解析并生成，请稍候…');
+  try {
+    const resp = await fetch('/api/generate', { method: 'POST', body: fd });
+    const raw = await resp.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch (_) { data = null; }
+    if (data === null) {
+      // 后端返回了 HTML 错误页等非 JSON 内容：把原始响应放进日志，别报 "Unexpected token '<'"
+      showLog(['[HTTP ' + resp.status + '] 服务端返回了非 JSON 响应，原始内容：', raw.slice(0, 2000)]);
+      throw new Error('服务端异常（HTTP ' + resp.status + '），详细内容见下方日志');
+    }
+    if (!resp.ok) {
+      showLog(data.log);   // 出错也展示日志：能看到每个文件被过滤/跳过/解析的具体原因
+      throw new Error(data.error || ('HTTP ' + resp.status));
+    }
+    setStatus('ok', `✅ 生成成功：${data.output_name}（已完成 ${data.completed} 个条目 / 进行中 ${data.wip} 个条目）${data.free_form ? '，已按生成要求自由生成（未套默认模板）' : ''}`);
+    renderDownloads(data, reportType);
+    showLog(data.log);
+  } catch (err) {
+    setStatus('err', '❌ 生成失败：' + err.message + '（可展开下方日志查看原因）');
+  } finally {
+    goBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
