@@ -1,0 +1,16 @@
+# 工作总结生成系统（work_review）依赖清单
+# Python 3.9+
+# 安装：pip install -r requirements.txt
+
+# --- Web 服务 ---
+flask>=2.3                  # Web 框架（自带 werkzeug，无需单独安装）
+
+# --- 文档解析 / 生成 ---
+python-docx>=1.1            # Word 读写（抽取 docx/模板填充/Word 导出）
+openpyxl>=3.1               # Excel .xlsx 读写（抽取/填充/Excel 导出）
+xlrd>=2.0                   # 旧版 .xls 读取（仅读，不支持写）
+pdfplumber>=0.10            # PDF 输入解析（首选）
+pypdf>=4.0                  # PDF 输入解析（pdfplumber 不可用时的备选）
+
+# --- 可选扩展（当前版本不用装） ---
+# reportlab>=4.0            # 如需自行扩展 PDF 导出再安装
